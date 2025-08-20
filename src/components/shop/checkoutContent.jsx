@@ -5,14 +5,12 @@ import { LuUserRound } from "react-icons/lu";
 import { useState, useEffect } from "react";
 import {
   doc,
-  setDoc,
   onSnapshot,
   collection,
   serverTimestamp,
-  deleteDoc,
   writeBatch,
 } from "firebase/firestore";
-import { userDb, userAuth } from "../../firebase/db.js";
+import { userDb, userAuth, db } from "../../firebase/db.js";
 import { onAuthStateChanged } from "firebase/auth";
 import { toast } from "react-toastify";
 
@@ -66,59 +64,64 @@ export default function CheckoutContent({toggleProfile}) {
     const orderNumber = `SPSC-${billingFirstName.charAt(0).toUpperCase()}${billingLastName.charAt(0).toUpperCase()}-${timestamp}-${randomNum}`;
 
     try {
-      const batch = writeBatch(userDb);
-      const orderRef = doc(userDb, "checkoutDb", orderId);
+      const frontendBatch = writeBatch(userDb);
+      const backendBatch = writeBatch(db); 
+    
 
-      batch.set(orderRef, {
-        id: orderId,
-        userId: userAuth.currentUser.uid,
-        orderNumber: orderNumber,
-        billingFirstName: billingFirstName,
-        billingLastName: billingLastName,
-        billingAddress: billingAddress,
-        billingNumber: billingNumber,
-        billingEmail: billingEmail,
-        deliveryFirstName: deliveryFirstName,
-        deliveryLastName: deliveryLastName,
-        deliveryAddress: deliveryAddress,
-        deliveryNumber: deliveryNumber,
-        deliveryEmail: deliveryEmail,
-        // status: "Pending",
-        totalAmount: totalAmount,
-        createdAt: serverTimestamp(),
-      });
+      const orderData = {
+      id: orderId,
+      userId: userAuth.currentUser.uid,
+      orderNumber,
+      billingFirstName,
+      billingLastName,
+      billingAddress,
+      billingNumber,
+      billingEmail,
+      deliveryFirstName,
+      deliveryLastName,
+      deliveryAddress,
+      deliveryNumber,
+      deliveryEmail,
+      totalAmount,
+      createdAt: serverTimestamp(),
+      status: "Pending"
+    };
+      
+    // -------------save checkout to frontend db
+      const frontendOrderRef = doc(userDb, "checkoutDb", orderId);
+      frontendBatch.set(frontendOrderRef, orderData);
 
-      const itemsCollectionRef = collection(
-        userDb,
-        "checkoutDb",
-        orderId,
-        "items"
-      );
+    // -------------save checkout to backend db
+      const backendOrderRef = doc(db, "orders", orderId);
+      backendBatch.set(backendOrderRef, orderData);
+
+
+      // ----------Add order item to both database
+
       cartItems.forEach((item) => {
-        const itemRef = doc(itemsCollectionRef, item.id);
-        batch.set(itemRef, {
-          id: item.id,
-          name: item.name,
-          size: item.size,
-          qty: item.qty,
-          price: item.price,
-          image: item.image,
-          createdAt: serverTimestamp(),
-        });
+
+        // ---------------Frontend items
+        const frontendItemsRef = doc(collection(userDb, "checkoutDb", orderId, "items"),item.id);
+        frontendBatch.set(frontendItemsRef, createItemData(item))
+
+        // -----------Backend items FOR ADMIN 
+        const backendItemsRef = doc(collection(db, "orders", orderId, "items"),item.id);
+        backendBatch.set(backendItemsRef, createItemData(item));
+    
       });
 
-      const userCartRef = collection(
-        userDb,
-        "cartdb",
-        userAuth.currentUser.uid,
-        "items"
-      );
+
+      // Clearing user cart in frontend database ------------------
+      const userCartRef = collection(userDb, "cartdb", userAuth.currentUser.uid, "items");
       cartItems.forEach((item) => {
         const itemRef = doc(userCartRef, item.id);
-        batch.delete(itemRef);
+        frontendBatch.delete(itemRef);
       });
 
-      await batch.commit();
+      await Promise.all([
+        frontendBatch.commit(),
+        backendBatch.commit()
+      ]);
 
        setTimeout(()=>{
           Navigate("/success")
@@ -144,6 +147,17 @@ export default function CheckoutContent({toggleProfile}) {
     }
   };
 
+  function createItemData(item) {
+  return {
+    id: item.id,
+    name: item.name,
+    size: item.size,
+    qty: item.qty,
+    price: item.price,
+    image: item.image,
+    createdAt: serverTimestamp()
+  };
+}
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(userAuth, (user) => {
       if (!user) {
@@ -506,3 +520,32 @@ export default function CheckoutContent({toggleProfile}) {
     </>
   );
 }
+
+
+// const batch = writeBatch(userDb);
+// batch.set(orderRef, {
+      //   id: orderId,
+      //   userId: userAuth.currentUser.uid,
+      //   orderNumber: orderNumber,
+      //   billingFirstName: billingFirstName,
+      //   billingLastName: billingLastName,
+      //   billingAddress: billingAddress,
+      //   billingNumber: billingNumber,
+      //   billingEmail: billingEmail,
+      //   deliveryFirstName: deliveryFirstName,
+      //   deliveryLastName: deliveryLastName,
+      //   deliveryAddress: deliveryAddress,
+      //   deliveryNumber: deliveryNumber,
+      //   deliveryEmail: deliveryEmail,
+      //   // status: "Pending",
+      //   totalAmount: totalAmount,
+      //   createdAt: serverTimestamp(),
+      // });
+
+      // const itemsCollectionRef = collection(
+      //   userDb,
+      //   "checkoutDb",
+      //   orderId,
+      //   "items"
+      // );
+      // 
