@@ -85,7 +85,7 @@ export default function CheckoutContent({toggleProfile}) {
       totalAmount,
       createdAt: serverTimestamp(),
       status: "Pending",
-      paymentStatus: "Not Paid"
+      paymentStatus: "Not Paid",
     };
       
     // -------------save checkout to frontend db
