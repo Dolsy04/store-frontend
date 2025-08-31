@@ -30,6 +30,7 @@ export default function Contact(){
                 email: email.trim(),
                 phoneNumber: phoneNumber.trim(),
                 textMessage: textMessage.trim(),
+                status: "unread",
                 timestamp: new Date(),
             })
              toast.success("Message sent successfully!", {position: "top-right", autoClose: 5000});
